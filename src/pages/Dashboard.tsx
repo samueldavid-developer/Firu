@@ -3,10 +3,10 @@ import { supabase } from '../lib/supabase';
 import type { Contrato, Propiedad, Inquilino, Pago } from '../types/database';
 import MetricCard from '../components/MetricCard';
 import ContractsTable from '../components/ContractsTable';
-import { 
-  Building2, 
-  FileText, 
-  CreditCard, 
+import {
+  Building2,
+  FileText,
+  CreditCard,
   AlertTriangle,
   RefreshCw,
   Bell,
@@ -96,9 +96,9 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  const currentDate = new Intl.DateTimeFormat('es-AR', { 
-    month: 'long', 
-    year: 'numeric' 
+  const currentDate = new Intl.DateTimeFormat('es-AR', {
+    month: 'long',
+    year: 'numeric'
   }).format(new Date());
 
   return (
@@ -109,7 +109,7 @@ const Dashboard: React.FC = () => {
           <h2 className="text-3xl font-bold text-white tracking-tight">Dashboard</h2>
           <p className="text-gray-500 mt-1 capitalize">{currentDate} • Resumen general</p>
         </div>
-        <button 
+        <button
           onClick={fetchData}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-border-card text-gray-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 disabled:opacity-50"
@@ -209,31 +209,8 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3">
-          <ContractsTable contracts={recentContracts} />
-        </div>
-        
-        {/* Calculator Widget */}
-        <div className="lg:col-span-1">
-          <div className="bg-bg-card border border-border-card rounded-2xl p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-brand/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-150 duration-700" />
-            <div className="relative z-10">
-              <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center text-brand mb-4">
-                <Calculator size={24} />
-              </div>
-              <h3 className="text-lg font-bold text-white">Calculadora de ajuste</h3>
-              <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-bold">ICL · IPC · Índices oficiales</p>
-              <p className="text-sm text-gray-400 mt-4 leading-relaxed">
-                Calculá el nuevo valor del alquiler con los índices actualizados del BCRA e INDEC.
-              </p>
-              <button className="w-full mt-6 py-3 rounded-xl bg-brand text-bg-dark font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-hover transition-all active:scale-95 shadow-[0_0_20px_rgba(251,191,36,0.2)]">
-                <ExternalLink size={16} />
-                Abrir calculadora
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="w-full">
+        <ContractsTable contracts={recentContracts} />
       </div>
     </div>
   );

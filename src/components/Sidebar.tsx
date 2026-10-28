@@ -35,7 +35,7 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      <nav className="flex-1 px-4 mt-4 space-y-1">
+      <nav className="flex-1 px-4 my-4 space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.name}
@@ -55,13 +55,6 @@ const Sidebar: React.FC = () => {
           </NavLink>
         ))}
       </nav>
-
-      <div className="p-4 mt-auto border-t border-border-card">
-        <button className="flex items-center gap-3 px-4 py-3 w-full text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-white/5">
-          <LogOut size={20} />
-          <span>Salir del demo</span>
-        </button>
-      </div>
     </aside>
   );
 };

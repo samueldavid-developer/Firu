@@ -13,9 +13,6 @@ const Layout: React.FC = () => {
             Dashboard
           </div>
           <div className="flex items-center gap-4">
-            <button className="px-3 py-1.5 rounded-lg bg-brand/10 text-brand text-xs font-bold border border-brand/20 hover:bg-brand/20 transition-colors">
-              MODO DEMO
-            </button>
             <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
               <Bell size={20} />
               <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-bg-dark">
@@ -25,7 +22,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
         <main className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             <Outlet />
           </div>
         </main>
