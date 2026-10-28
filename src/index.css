@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand: #fbbf24;
+  --color-brand-hover: #f59e0b;
+  --color-bg-dark: #0f1117;
+  --color-bg-card: #1a1c23;
+  --color-bg-sidebar: #13151b;
+  --color-border-card: #2d2f36;
+}
+
+:root {
+  background-color: var(--color-bg-dark);
+  color: #f3f4f6;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  min-width: 320px;
+  min-height: 100vh;
+}
