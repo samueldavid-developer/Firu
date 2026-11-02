@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { db, collection, addDoc, doc, updateDoc, cleanData, createdAt } from '../lib/fire';
 import type { Inquilino } from '../types/database';
 import { Save, Loader2 } from 'lucide-react';
 
@@ -16,7 +16,6 @@ const TenantForm: React.FC<TenantFormProps> = ({ onSuccess, onCancel, initialDat
     dni: initialData?.dni || '',
     telefono: initialData?.telefono || '',
     email: initialData?.email || '',
-    garante: initialData?.garante || '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,22 +28,22 @@ const TenantForm: React.FC<TenantFormProps> = ({ onSuccess, onCancel, initialDat
     setLoading(true);
 
     try {
+      const payload = cleanData({
+        nombre: formData.nombre,
+        dni: formData.dni,
+        telefono: formData.telefono,
+        email: formData.email
+      });
+
       if (initialData?.id) {
-        const { error } = await supabase
-          .from('inquilinos')
-          .update(formData)
-          .eq('id', initialData.id);
-        if (error) throw error;
+        await updateDoc(doc(db, 'inquilinos', initialData.id), payload);
       } else {
-        const { error } = await supabase
-          .from('inquilinos')
-          .insert([formData]);
-        if (error) throw error;
+        await addDoc(collection(db, 'inquilinos'), { ...payload, ...createdAt() });
       }
       onSuccess();
     } catch (error) {
-      console.error('Error saving tenant:', error);
-      alert('Error al guardar el inquilino');
+      console.error('Error detallado de Firestore:', error);
+      alert('Error al guardar el inquilino. Revisa la consola (F12) para más detalles.');
     } finally {
       setLoading(false);
     }
@@ -65,9 +64,9 @@ const TenantForm: React.FC<TenantFormProps> = ({ onSuccess, onCancel, initialDat
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">DNI *</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">CEDULA *</label>
           <input
             required
             type="text"
@@ -100,18 +99,6 @@ const TenantForm: React.FC<TenantFormProps> = ({ onSuccess, onCancel, initialDat
           value={formData.email}
           onChange={handleChange}
           placeholder="diego.f@gmail.com"
-          className="w-full bg-bg-dark border border-border-card rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand transition-colors"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Garante (Opcional)</label>
-        <input
-          type="text"
-          name="garante"
-          value={formData.garante}
-          onChange={handleChange}
-          placeholder="Ej: Roberto Fernández"
           className="w-full bg-bg-dark border border-border-card rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand transition-colors"
         />
       </div>

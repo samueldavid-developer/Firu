@@ -26,21 +26,21 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-dark/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-bg-dark/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
-        className="bg-bg-card border border-border-card w-full max-w-lg rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden"
+        className="bg-bg-card border border-border-card w-[92%] sm:w-full max-w-lg mx-auto max-h-[85vh] sm:max-h-[90vh] rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-6 border-b border-border-card">
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+        <div className="flex items-center justify-between gap-3 p-4 sm:p-6 border-b border-border-card shrink-0">
+          <h3 className="text-lg sm:text-xl font-bold text-white truncate">{title}</h3>
           <button 
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+            className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5 shrink-0"
           >
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 max-h-[80vh] overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>

@@ -1,94 +1,95 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import type { Contrato, Propiedad, Inquilino, Pago } from '../types/database';
+import { db, collection, getDocs, query, where, mapDocs, fetchLookup } from '../lib/fire';
+import type { Contrato, Inquilino } from '../types/database';
 import MetricCard from '../components/MetricCard';
 import ContractsTable from '../components/ContractsTable';
+import PaymentReceiptModal from '../components/PaymentReceiptModal';
+import Toast from '../components/Toast';
+import { useAlerts, ESTADOS_VIGENTES } from '../hooks/useAlerts';
+import { usePaymentAlerts, type PaymentAlert } from '../hooks/usePaymentAlerts';
+import { formatCurrency, formatDate } from '../lib/payments';
+import { Link } from 'react-router-dom';
 import {
-  Building2,
   FileText,
+  UserCircle,
   CreditCard,
   AlertTriangle,
   RefreshCw,
   Bell,
   Calendar,
-  TrendingUp,
-  Calculator,
-  ExternalLink
+  ChevronRight,
+  Check,
+  Loader2
 } from 'lucide-react';
 
 interface ContratoWithDetails extends Contrato {
-  propiedad: Propiedad;
-  inquilino: Inquilino;
+  inquilino?: Inquilino;
 }
+
+const ESTILOS_COBRO: Record<PaymentAlert['estado'], { label: string; detalle: (dias: number) => string; color: string; barra: string }> = {
+  atrasado: {
+    label: 'Pago atrasado',
+    detalle: dias => `${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'} de atraso`,
+    color: 'text-red-500 bg-red-500/10 border-red-500/20',
+    barra: 'bg-red-500'
+  },
+  hoy: {
+    label: 'Vence hoy',
+    detalle: () => 'Cobra hoy',
+    color: 'text-orange-500 bg-orange-500/10 border-orange-500/20',
+    barra: 'bg-orange-500'
+  },
+  proximo: {
+    label: 'Próximo a vencer',
+    detalle: () => 'Vence mañana',
+    color: 'text-brand bg-brand/10 border-brand/20',
+    barra: 'bg-brand'
+  }
+};
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    propertiesCount: 0,
-    activeContractsCount: 0,
-    pendingPaymentsCount: 0,
-    alertsCount: 0
-  });
+  const [procesando, setProcesando] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string; variant: 'success' | 'error' } | null>(null);
+
+  const { alerts, refreshAlerts } = useAlerts();
+  const { alerts: paymentAlerts, resumen, loading: loadingCobros, refreshAlerts: refreshCobros, registerPayment } = usePaymentAlerts();
+
+  const [stats, setStats] = useState({ activeContractsCount: 0, tenantsCount: 0 });
   const [recentContracts, setRecentContracts] = useState<ContratoWithDetails[]>([]);
+  const [receiptContract, setReceiptContract] = useState<ContratoWithDetails | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const showToast = (message: string, variant: 'success' | 'error' = 'success') =>
+    setToast({ id: Date.now(), message, variant });
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const fetchData = async (conSpinner = true) => {
+    if (conSpinner) setLoading(true);
     try {
-      // Fetch properties count
-      const { count: propCount } = await supabase
-        .from('propiedades')
-        .select('*', { count: 'exact', head: true });
+      const [contractsSnap, tenants] = await Promise.all([
+        getDocs(query(collection(db, 'contratos'), where('estado', 'in', ESTADOS_VIGENTES))),
+        fetchLookup<Inquilino>('inquilinos')
+      ]);
 
-      // Fetch active contracts count
-      const { count: contractCount } = await supabase
-        .from('contratos')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado', 'Activo');
-
-      // Fetch pending payments count for current month
-      const now = new Date();
-      const { count: paymentsCount } = await supabase
-        .from('pagos')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado', 'Pendiente')
-        .eq('mes', now.getMonth() + 1)
-        .eq('anio', now.getFullYear());
-
-      // Fetch alerts (contracts expiring soon - next 60 days)
-      const sixtyDaysFromNow = new Date();
-      sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
-      const { count: alertsCount } = await supabase
-        .from('contratos')
-        .select('*', { count: 'exact', head: true })
-        .eq('estado', 'Activo')
-        .lte('fecha_fin', sixtyDaysFromNow.toISOString().split('T')[0]);
-
-      // Fetch recent contracts with details
-      const { data: contractsData } = await supabase
-        .from('contratos')
-        .select(`
-          *,
-          propiedad:propiedades(*),
-          inquilino:inquilinos(*)
-        `)
-        .eq('estado', 'Activo')
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const recentContracts = mapDocs<Contrato>(contractsSnap)
+        .map(contract => ({ ...contract, inquilino: tenants[contract.inquilino_id] }))
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 5);
 
       setStats({
-        propertiesCount: propCount || 0,
-        activeContractsCount: contractCount || 0,
-        pendingPaymentsCount: paymentsCount || 0,
-        alertsCount: alertsCount || 0
+        activeContractsCount: contractsSnap.size,
+        tenantsCount: Object.keys(tenants).length
       });
-
-      if (contractsData) {
-        setRecentContracts(contractsData as any);
-      }
+      setRecentContracts(recentContracts);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
-      setLoading(false);
+      if (conSpinner) setLoading(false);
     }
   };
 
@@ -96,23 +97,46 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleActualizar = () => {
+    fetchData();
+    refreshAlerts();
+    refreshCobros();
+  };
+
+  const handlePagar = async (alert: PaymentAlert) => {
+    setProcesando(alert.id);
+    try {
+      await registerPayment(alert);
+      showToast(alert.concepto === 'Condominio' ? 'Pago de condominio registrado exitosamente' : 'Pago registrado exitosamente');
+      // Refresca las métricas y la tabla sin recargar la página ni volver a mostrar el spinner
+      fetchData(false);
+    } catch (error) {
+      console.error('Error registering payment:', error);
+      showToast('No se pudo registrar el pago', 'error');
+    } finally {
+      setProcesando(null);
+    }
+  };
+
+  const alertasVencimiento = alerts.filter(alert => alert.type === 'expiry');
+
   const currentDate = new Intl.DateTimeFormat('es-AR', {
     month: 'long',
     year: 'numeric'
   }).format(new Date());
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Dashboard</h2>
-          <p className="text-gray-500 mt-1 capitalize">{currentDate} • Resumen general</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight truncate">Dashboard</h2>
+          <p className="text-gray-500 mt-1 capitalize truncate">{currentDate} • Resumen general</p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={handleActualizar}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-border-card text-gray-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-border-card text-gray-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 disabled:opacity-50 shrink-0"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           <span className="text-sm font-medium">Actualizar</span>
@@ -122,96 +146,173 @@ const Dashboard: React.FC = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
-          title="Propiedades"
-          value={stats.propertiesCount}
-          subtitle="registradas"
-          icon={Building2}
-          iconBgColor="bg-blue-500/10"
-          iconColor="text-blue-500"
-        />
-        <MetricCard
-          title="Contratos activos"
+          title="Contratos vigentes"
           value={stats.activeContractsCount}
-          subtitle="en curso"
+          subtitle="activos y permanentes"
           icon={FileText}
           iconBgColor="bg-yellow-500/10"
           iconColor="text-yellow-500"
         />
         <MetricCard
-          title="Pagos pendientes"
-          value={stats.pendingPaymentsCount}
-          subtitle="este mes"
+          title="Inquilinos"
+          value={stats.tenantsCount}
+          subtitle="registrados"
+          icon={UserCircle}
+          iconBgColor="bg-blue-500/10"
+          iconColor="text-blue-500"
+        />
+        <MetricCard
+          title="Cobros pendientes"
+          value={resumen.pendientes}
+          subtitle={`${formatCurrency(resumen.montoPendiente)} sin cobrar`}
           icon={CreditCard}
           iconBgColor="bg-red-500/10"
           iconColor="text-red-500"
         />
         <MetricCard
-          title="Por vencer"
-          value={stats.alertsCount}
-          subtitle="en 60 días"
+          title="Por atender"
+          value={paymentAlerts.length}
+          subtitle="próximos o atrasados"
           icon={AlertTriangle}
           iconBgColor="bg-orange-500/10"
           iconColor="text-orange-500"
         />
       </div>
 
-      {/* Alerts Section */}
+      {/* Arrendamiento */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center text-brand">
-            <Bell size={18} />
+            <CreditCard size={18} />
           </div>
-          <h3 className="text-lg font-bold text-white">Alertas</h3>
-          <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-bold border border-brand/20">
-            3
-          </span>
-          <button className="ml-auto text-xs font-medium text-gray-500 hover:text-gray-300">Ocultar</button>
+          <h3 className="text-lg font-bold text-white">Arrendamiento</h3>
+          {paymentAlerts.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-bold border border-brand/20">
+              {paymentAlerts.length}
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Mock Alerts to match image */}
-          <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 flex items-start gap-4 hover:bg-red-500/10 transition-colors cursor-pointer group">
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
-              <Calendar size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-red-500">Contrato vence pronto</h4>
-              <p className="text-sm text-gray-300 mt-0.5">Colón 890</p>
-              <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-red-500/10 text-red-500 text-[10px] font-bold border border-red-500/20">
-                en 18 días
-              </span>
-            </div>
+        {loadingCobros ? (
+          <div className="bg-bg-card border border-border-card rounded-2xl p-10 flex items-center justify-center gap-3">
+            <Loader2 className="animate-spin text-brand" size={22} />
+            <span className="text-sm text-gray-500 font-medium">Revisando cobros...</span>
           </div>
+        ) : paymentAlerts.length === 0 ? (
+          <div className="bg-bg-card border border-border-card rounded-2xl p-10 text-center">
+            <Check size={28} className="text-green-500 mx-auto mb-3" />
+            <p className="text-sm text-gray-400 font-medium">No hay cobros por atender por ahora</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {paymentAlerts.map(alert => {
+              const estilo = ESTILOS_COBRO[alert.estado];
+              const procesandoEste = procesando === alert.id;
 
-          <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl p-6 flex items-start gap-4 hover:bg-orange-500/10 transition-colors cursor-pointer group">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 shrink-0">
-              <CreditCard size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-orange-500">Pagos pendientes este mes</h4>
-              <p className="text-sm text-gray-300 mt-0.5">5 contratos sin cobrar</p>
-            </div>
-          </div>
+              return (
+                <div
+                  key={alert.id}
+                  className="bg-bg-card border border-border-card rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden"
+                >
+                  <div className={`absolute top-0 left-0 w-1 h-full ${estilo.barra}`} />
 
-          <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6 flex items-start gap-4 hover:bg-blue-500/10 transition-colors cursor-pointer group">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
-              <TrendingUp size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-blue-500">Aumento próximo (ICL)</h4>
-              <p className="text-sm text-gray-300 mt-0.5">Av. San Martín 1234</p>
-              <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold border border-blue-500/20">
-                en 12 días
-              </span>
-            </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-white truncate">{alert.inquilinoNombre}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-widest whitespace-nowrap ${alert.concepto === 'Condominio'
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : 'bg-white/5 text-gray-400 border-border-card'
+                          }`}>
+                          {alert.concepto}
+                        </span>
+                        <p className="text-xs text-gray-500 truncate">
+                          Cobro el día {alert.diaCobro} • {formatDate(alert.vencimiento.toISOString())}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border uppercase tracking-widest whitespace-nowrap ${estilo.color}`}>
+                      {estilo.label}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="text-2xl font-bold text-white">{formatCurrency(alert.monto)}</div>
+                    <div className="text-xs text-gray-500 mt-1">{estilo.detalle(alert.dias)}</div>
+                    {alert.concepto === 'Condominio' && (alert.periodosPendientes?.length || 0) > 1 && (
+                      <div className="text-xs text-blue-400 mt-1">
+                        Incluye {alert.periodosPendientes?.length} meses adeudados
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handlePagar(alert)}
+                    disabled={procesandoEste}
+                    className="w-full py-3 rounded-xl bg-brand text-bg-dark font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-hover transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {procesandoEste ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                    Sí pagó{alert.concepto === 'Condominio' ? ' Condominio' : ''}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Alertas de vencimiento */}
+      {alertasVencimiento.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center text-brand">
+              <Bell size={18} />
+            </div>
+            <h3 className="text-lg font-bold text-white">Contratos por vencer</h3>
+            <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-xs font-bold border border-brand/20">
+              {alertasVencimiento.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {alertasVencimiento.map(alert => (
+              <Link
+                key={alert.id}
+                to={alert.link}
+                className="bg-bg-card border border-border-card rounded-2xl p-6 flex items-start gap-4 hover:border-brand/30 transition-all group relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-500/10 text-red-500">
+                  <Calendar size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-red-500">{alert.title}</h4>
+                  <p className="text-sm text-gray-300 mt-0.5 truncate">{alert.description}</p>
+                  {alert.daysRemaining !== undefined && (
+                    <span className="inline-block mt-2 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-red-500/10 text-red-500 border-red-500/20">
+                      en {alert.daysRemaining} días
+                    </span>
+                  )}
+                </div>
+                <ChevronRight size={18} className="text-gray-600 group-hover:text-gray-400 group-hover:translate-x-1 transition-all" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="w-full">
-        <ContractsTable contracts={recentContracts} />
+        <ContractsTable contracts={recentContracts} onViewReceipt={setReceiptContract} />
       </div>
+
+      <PaymentReceiptModal
+        isOpen={!!receiptContract}
+        onClose={() => setReceiptContract(null)}
+        contract={receiptContract}
+      />
+
+      {toast && <Toast message={toast.message} variant={toast.variant} />}
     </div>
   );
 };
