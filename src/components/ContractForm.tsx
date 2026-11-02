@@ -195,7 +195,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ onSuccess, onCancel, initia
         </select>
       </div>
 
-      <div className={`grid ${esPlazoDefinido ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-4`}>
+      <div className={`grid ${esPlazoDefinido ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha de inicio *</label>
           <input
@@ -239,7 +239,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ onSuccess, onCancel, initia
         <button
           type="submit"
           disabled={loading}
-          className="flex-2 py-3 rounded-xl bg-brand text-bg-dark font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-hover transition-all active:scale-95 disabled:opacity-50"
+          className="flex-[2] py-3 rounded-xl bg-brand text-bg-dark font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-hover transition-all active:scale-95 disabled:opacity-50"
         >
           {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {initialData ? 'Guardar cambios' : 'Crear contrato'}

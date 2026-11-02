@@ -144,7 +144,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Contratos vigentes"
           value={stats.activeContractsCount}
@@ -204,7 +204,7 @@ const Dashboard: React.FC = () => {
             <p className="text-sm text-gray-400 font-medium">No hay cobros por atender por ahora</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {paymentAlerts.map(alert => {
               const estilo = ESTILOS_COBRO[alert.estado];
               const procesandoEste = procesando === alert.id;
@@ -274,7 +274,7 @@ const Dashboard: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {alertasVencimiento.map(alert => (
               <Link
                 key={alert.id}
